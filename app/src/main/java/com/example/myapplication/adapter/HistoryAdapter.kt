@@ -14,9 +14,11 @@ class HistoryAdapter(val historyDeleteClickedListener: (String) -> Unit, val his
 
         fun bind(historyModel: History) {
             binding.historyKeywordTextView.text = historyModel.keyword
+            //검색기록 클릭했을때 검색.
             binding.historyKeywordTextView.setOnClickListener {
                 historyKeywordClicktedListener(historyModel.keyword.orEmpty())
             }
+            //검색기록 삭제 클릭했을때 삭제.
             binding.historyKeywordDeleteButton.setOnClickListener {
                 historyDeleteClickedListener(historyModel.keyword.orEmpty())
             }

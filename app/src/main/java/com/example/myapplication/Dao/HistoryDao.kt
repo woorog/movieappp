@@ -16,4 +16,8 @@ interface HistoryDao {
 
     @Query("DELETE FROM history WHERE keyword == :keyword")
     fun delete(keyword: String)
+
+    //10개단위 검색기록 구현
+    @Query("SELECT * FROM history ORDER BY uid DESC LIMIT :count")
+    fun getRecent(count: Int): List<History>
 }

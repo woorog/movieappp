@@ -1,26 +1,22 @@
 package com.example.myapplication
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
 import androidx.appcompat.app.AppCompatActivity
-import androidx.navigation.findNavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.navigateUp
-import android.view.Menu
-import android.view.MenuItem
 import android.view.MotionEvent
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.room.Room
-import com.example.myapplication.adapter.BookAdapter
+import com.example.myapplication.adapter.MovieAdapter
 import com.example.myapplication.adapter.HistoryAdapter
-import com.example.myapplication.api.BookService
+import com.example.myapplication.api.MovieService
 import com.example.myapplication.databinding.ActivityMainBinding
-import com.example.myapplication.model.BestSellerDto
+import com.example.myapplication.model.MovieMainDto
 import com.example.myapplication.model.History
-import com.example.myapplication.model.SearchBookDto
+import com.example.myapplication.model.SearchMovieDto
 import retrofit2.*
 import retrofit2.converter.gson.GsonConverterFactory
 
@@ -30,8 +26,8 @@ class MainActivity : AppCompatActivity() {
 
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var adapter: BookAdapter
-    private lateinit var bookService: BookService
+    private lateinit var adapter: MovieAdapter
+    private lateinit var movieService: MovieService
     private lateinit var historyAdapter: HistoryAdapter
 
     private lateinit var db: AppDatabase
@@ -43,31 +39,33 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         binding=ActivityMainBinding.inflate(layoutInflater)
-
         setContentView(binding.root)
 
-        initBookRecyclerView()
-        initSearchEditText()
-        initHistoryRecyclerView()
+        initmovieRecyclerView()  //영화 정보
+        initSearchEditText()   //검색기능
+        initHistoryRecyclerView() //검색기록
 
+
+        //database 를 위한 room 사용
         db = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
-            name = "BookSearchDB"
+            name = "movieSearchDB"
         ).build()
 
         val retrofit = Retrofit.Builder()
-            .baseUrl("https://book.interpark.com/")
+            .baseUrl("https://openapi.naver.com/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
 
-        bookService = retrofit.create<BookService>()
 
-        bookService.getBestSellerBooks(apiKey = getString(R.string.InterparkApiKey))
-            .enqueue(object: Callback<BestSellerDto> {
+        movieService = retrofit.create<MovieService>()
+
+        movieService.mainmovie( id = "1nV41uHeBS6rMtJWqY1L", pw = "rGYnT899RA")
+            .enqueue(object: Callback<MovieMainDto> {
                 override fun onResponse( //true.
-                    call: Call<BestSellerDto>,
-                    response: Response<BestSellerDto>
+                    call: Call<MovieMainDto>,
+                    response: Response<MovieMainDto>
                 ) {
 
                     if(response.isSuccessful.not()){
@@ -77,16 +75,15 @@ class MainActivity : AppCompatActivity() {
                     response.body()?.let {
                         Log.d(TAG,it.toString())
 
-                        it.books.forEach{book ->
+                        it.movies.forEach{book ->
                             Log.d(TAG,book.toString())
 
                         }
-
-                        adapter.submitList(it.books)
+                        adapter.submitList(it.movies)
                     }
                 }
 
-                override fun onFailure(call: Call<BestSellerDto>, t: Throwable) {
+                override fun onFailure(call: Call<MovieMainDto>, t: Throwable) {
                     Log.e(TAG,t.toString())
                 }
 
@@ -98,12 +95,13 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+
     private fun search(keyword:String){
-        bookService.getBooksByName(getString(R.string.InterparkApiKey),keyword)
-            .enqueue(object: Callback<SearchBookDto> {
+        movieService.getmoviesByName(keyword, id = "1nV41uHeBS6rMtJWqY1L", pw = "rGYnT899RA")
+            .enqueue(object: Callback<SearchMovieDto> {
                 override fun onResponse( //true.
-                    call: Call<SearchBookDto>,
-                    response: Response<SearchBookDto>
+                    call: Call<SearchMovieDto>,
+                    response: Response<SearchMovieDto>
                 ) {
                     hideHistoryView()
                     saveSearchKeyword(keyword)
@@ -113,11 +111,11 @@ class MainActivity : AppCompatActivity() {
                         return
                     }
 
-                    adapter.submitList(response.body()?.books.orEmpty())
+                    adapter.submitList(response.body()?.movies.orEmpty())
 
                 }
 
-                override fun onFailure(call: Call<SearchBookDto>, t: Throwable) {
+                override fun onFailure(call: Call<SearchMovieDto>, t: Throwable) {
                     hideHistoryView()
                     Log.e(TAG,t.toString())
                 }
@@ -126,16 +124,19 @@ class MainActivity : AppCompatActivity() {
             })
     }
 
-    private fun initBookRecyclerView(){
-        adapter = BookAdapter(itemClickedListener = {
-            val intent = Intent(this, DetailActivity::class.java)
-            intent.putExtra("bookModel", it)
+    //영화 리사이클러뷰
+    private fun initmovieRecyclerView(){
+        adapter = MovieAdapter(itemClickedListener = {
+            var intent = Intent(Intent.ACTION_VIEW, Uri.parse(it.link))
+            Log.d("link",it.link)
             startActivity(intent)
         })
-        binding.bookRecyclerView.layoutManager = LinearLayoutManager(this)
-        binding.bookRecyclerView.adapter = adapter
+        binding.movieRecyclerView.layoutManager = LinearLayoutManager(this)
+        binding.movieRecyclerView.adapter = adapter
+
     }
 
+    //검색기록 리사이클러뷰
     private fun initHistoryRecyclerView() {
         historyAdapter = HistoryAdapter(
             historyDeleteClickedListener = {
@@ -146,7 +147,6 @@ class MainActivity : AppCompatActivity() {
         binding.historyRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.historyRecyclerView.adapter = historyAdapter
         initSearchEditText()
-
     }
 
 
@@ -154,7 +154,6 @@ class MainActivity : AppCompatActivity() {
         binding.searchEditText.setOnTouchListener { v, event ->
             if(event.action == MotionEvent.ACTION_DOWN) {
                 showHistoryView()
-                // true 주면 오류생김.
             }
             return@setOnTouchListener false
         }
@@ -173,26 +172,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun showHistoryView() {
         Thread {
-            val keywords = db.historyDao().getAll().reversed()
-
-            runOnUiThread {
-                if (keywords.size == 0){
-                    binding.historyRecyclerView.isVisible = false
-                    return@runOnUiThread
-                }
-                binding.historyRecyclerView.isVisible = true
+            val keywords = db.historyDao().getRecent(10).reversed()
+            runOnUiThread{
+                binding.historyRecyclerView.isVisible=true
                 historyAdapter.submitList(keywords.orEmpty())
             }
+
         }.start()
+        binding.historyRecyclerView.isVisible=true
     }
 
     private fun hideHistoryView() {
         binding.historyRecyclerView.isVisible = false
     }
-
-    /*private fun hideBookRecyclerView() {
-        binding.bookRecyclerView.isVisible = false
-    }*/
 
     private fun saveSearchKeyword(keyword: String){
         Thread{
@@ -210,29 +202,9 @@ class MainActivity : AppCompatActivity() {
 
 
 
-    private lateinit var appBarConfiguration: AppBarConfiguration
 
-    //private lateinit var binding: ActivityMainBinding
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        return when (item.itemId) {
-            R.id.action_settings -> true
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
 
-    override fun onSupportNavigateUp(): Boolean {
-        val navController = findNavController(R.id.nav_host_fragment_content_main)
-        return navController.navigateUp(appBarConfiguration)
-                || super.onSupportNavigateUp()
-    }
+
 }
